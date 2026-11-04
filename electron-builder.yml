@@ -1,0 +1,38 @@
+appId: com.workspace.office
+productName: Workspace
+copyright: Workspace
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+  - node_modules/**/*
+  - '!**/*.map'
+  - '!**/*.test.*'
+asar: true
+asarUnpack:
+  - dist/node/engine/**
+  - node_modules/zod/**
+extraResources:
+  - from: build/icon.png
+    to: build/icon.png
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.png
+  artifactName: Workspace-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Workspace
+  deleteAppDataOnUninstall: false
+portable:
+  artifactName: Workspace-Portable-${version}.${ext}

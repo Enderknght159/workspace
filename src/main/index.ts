@@ -44,7 +44,10 @@ let pollTimer: NodeJS.Timeout | null = null;
 let engineToken = '';
 
 const officeDir =
-  process.env.WORKSPACE_OFFICE ?? join(app.getPath('documents'), 'WorkspaceOffice');
+  process.env.WORKSPACE_OFFICE ??
+  (process.env.PORTABLE_EXECUTABLE_DIR
+    ? join(process.env.PORTABLE_EXECUTABLE_DIR, 'WorkspaceOffice')
+    : join(app.getPath('documents'), 'WorkspaceOffice'));
 const devServer = process.env.WORKSPACE_DEV_SERVER;
 
 function log(message: string, data?: unknown): void {
@@ -382,7 +385,8 @@ function createWindow(): void {
   if (devServer) {
     void mainWindow.loadURL(devServer);
   } else {
-    void mainWindow.loadFile(rendererEntry());
+    const hash = process.env.WORKSPACE_ROUTE;
+    void mainWindow.loadFile(rendererEntry(), hash ? { hash } : undefined);
   }
 }
 
@@ -396,8 +400,7 @@ function saveBounds(): void {
   }
 }
 
-function registerIpc(): void {
-  ipcMain.on('app:bridge-info', (event) => {
+function registerIpc(): void {  ipcMain.on('app:bridge-info', (event) => {
     event.returnValue = bridgeInfo;
   });
   ipcMain.handle('dialog:choose-directory', async () => {
@@ -438,6 +441,7 @@ if (!app.requestSingleInstanceLock()) {
       createWindow();
       createTray();
       startPolling();
+      void setupUpdates();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log('startup.failed', { message });
@@ -456,3 +460,23 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 export { engineReady };
+
+async function setupUpdates(): Promise<void> {
+  if (!app.isPackaged) return;
+  try {
+    const { autoUpdater } = await import('electron-updater');
+    autoUpdater.autoDownload = false;
+    const feed = process.env.WORKSPACE_UPDATE_FEED;
+    if (feed) {
+      autoUpdater.setFeedURL({ provider: 'generic', url: feed });
+    }
+    autoUpdater.on('error', (error) => log('updater.error', { message: String(error) }));
+    autoUpdater.on('update-available', (info) => log('updater.available', { version: info.version }));
+    const result = await autoUpdater.checkForUpdates();
+    if (result?.updateInfo) {
+      log('updater.checked', { version: result.updateInfo.version });
+    }
+  } catch (error) {
+    log('updater.failed', { message: String(error) });
+  }
+}

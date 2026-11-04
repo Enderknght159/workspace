@@ -39,6 +39,7 @@ async function main(): Promise<void> {
   const options = readOptions(process.argv.slice(2));
   const office = Office.open({ dir: options.office });
   if (options.queue) office.queue.start();
+  startDailyBackup(office);
 
   const http = await startHttpServer({
     office,
@@ -85,3 +86,22 @@ main().catch((error: unknown) => {
   process.stdout.write(`${JSON.stringify({ type: 'engine.error', message })}\n`);
   process.exit(1);
 });
+
+function startDailyBackup(office: Office): void {
+  const check = (): void => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const exists = office.listBackups().some((backup) => backup.createdAt.slice(0, 10) === today);
+      if (!exists) {
+        const result = office.backup();
+        office.logger.info('backup.daily', { name: result.name, bytes: result.bytes });
+      }
+    } catch (error) {
+      office.logger.warn('backup.daily_failed', { error: String(error) });
+    }
+  };
+  const initial = setTimeout(check, 10_000);
+  initial.unref?.();
+  const timer = setInterval(check, 6 * 60 * 60_000);
+  timer.unref?.();
+}

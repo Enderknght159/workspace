@@ -1,9 +1,19 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { withOffice } from '../testing/harness.js';
 
 describe('card ingest', () => {
+  it('honors an explicit event kind over folder-name detection', async () => {
+    await withOffice(async ({ office, root, volumeRoot }) => {
+      office.volumes.register({ root: volumeRoot, label: 'Hot', kind: 'hot' }, null, office.config.id);
+      const source = join(root, 'card-x');
+      mkdirSync(source, { recursive: true });
+      writeFileSync(join(source, 'clip.mp4'), 'bytes');
+      const preview = await office.ingest.preview({ source, kind: 'khutbah' });
+      expect(preview.suggested.kind).toBe('khutbah');
+    });
+  });
+
   it('copies, hashes, verifies, deduplicates, and organizes media', async () => {
     await withOffice(async ({ office, root, volumeRoot }) => {
       office.volumes.register({ root: volumeRoot, label: 'Hot', kind: 'hot' }, null, office.config.id);
@@ -51,8 +61,7 @@ describe('card ingest', () => {
     });
   });
 
-  it('blocks ingest when media is empty', async () => {
-    await withOffice(async ({ office, root, volumeRoot }) => {
+  it('blocks ingest when media is empty', async () => {    await withOffice(async ({ office, root, volumeRoot }) => {
       office.volumes.register({ root: volumeRoot, label: 'Hot', kind: 'hot' }, null, office.config.id);
       const source = join(root, 'empty');
       mkdirSync(source, { recursive: true });
@@ -65,8 +74,7 @@ describe('card ingest', () => {
     });
   });
 
-  it('fails cleanly when every file is already in the catalog', async () => {
-    await withOffice(async ({ office, root, volumeRoot }) => {
+  it('fails cleanly when every file is already in the catalog', async () => {    await withOffice(async ({ office, root, volumeRoot }) => {
       office.volumes.register({ root: volumeRoot, label: 'Hot', kind: 'hot' }, null, office.config.id);
       const first = join(root, 'first');
       mkdirSync(first, { recursive: true });

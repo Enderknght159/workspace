@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppError } from '../../shared/errors.js';
 import { newId } from '../../shared/ids.js';
@@ -249,8 +249,41 @@ export class ArchiveService {
     }
   }
 
-  private resolveAsset(volumeId: string, relPath: string): string {
-    const volume = this.deps.volumes.get(volumeId);
+  purgeTrash(): { removed: number; bytes: number } {
+    const days = this.deps.settings.get().archive.trashDays;
+    const cutoff = Date.now() - days * 86_400_000;
+    let removed = 0;
+    let bytes = 0;
+    for (const volume of this.deps.volumes.list()) {
+      if (volume.kind !== 'hot' || !volume.root) continue;
+      const trash = join(volume.root, '90_trash');
+      if (!existsSync(trash)) continue;
+      for (const entry of readdirSync(trash, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const full = join(trash, entry.name);
+        try {
+          const stats = statSync(full);
+          if (stats.mtimeMs > cutoff) continue;
+          bytes += directoryBytes(full);
+          rmSync(full, { recursive: true, force: true });
+          removed += 1;
+        } catch (error) {
+          this.deps.logger.warn('archive.purge_failed', { path: entry.name, error: String(error) });
+        }
+      }
+    }
+    this.deps.audit.record({
+      actorId: null,
+      action: 'archive.purge',
+      entity: 'office',
+      entityId: 'trash',
+      after: { removed, bytes, olderThanDays: days },
+      elevated: true,
+    });
+    return { removed, bytes };
+  }
+
+  private resolveAsset(volumeId: string, relPath: string): string {    const volume = this.deps.volumes.get(volumeId);
     if (!volume?.root) throw new AppError('WS-2002', { volumeId });
     return this.deps.paths.resolveInside(volume.root, relPath);
   }
@@ -260,4 +293,20 @@ export class ArchiveService {
     if (!volume?.root) throw new AppError('WS-2002', { volumeId });
     return this.deps.paths.resolveInside(volume.root, relPath);
   }
+}
+
+function directoryBytes(dir: string): number {
+  let total = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) total += directoryBytes(full);
+    else {
+      try {
+        total += statSync(full).size;
+      } catch {
+        // تجاهل.
+      }
+    }
+  }
+  return total;
 }

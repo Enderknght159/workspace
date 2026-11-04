@@ -88,6 +88,10 @@ export class JobService {
     if (!event.volumeId || !event.relPath) throw new AppError('WS-2002', { eventId: event.id });
     const volume = this.deps.volumes.get(event.volumeId);
     if (!volume?.root) throw new AppError('WS-2002', { volumeId: event.volumeId });
+    const freeLimit = this.deps.settings.get().ingest.blockBelowGb * 1024 ** 3;
+    if (volume.freeBytes !== null && volume.freeBytes < freeLimit) {
+      throw new AppError('WS-2005', { freeBytes: volume.freeBytes, required: freeLimit });
+    }
 
     let styleId = input.styleId ?? null;
     if (!styleId && ['edit', 'reel', 'export'].includes(input.kind)) {

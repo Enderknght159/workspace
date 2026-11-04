@@ -326,6 +326,10 @@ function buildRoutes(): Route[] {
       const request = parseBody(archiveRunRequest, body);
       return office.archive.run({ ...request, actorId });
     }),
+    route('POST', '/api/archive/purge', ({ office, elevationToken }) => {
+      office.security.requireElevation(elevationToken);
+      return office.archive.purgeTrash();
+    }),
 
     route('GET', '/api/stream', () => undefined, true),
   ];
