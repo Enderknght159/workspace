@@ -835,7 +835,7 @@ export function Settings() {
                 )}
               </div>
               <div className="form-grid">
-                <Field label="قفل الخمول (دقيقة)">
+                <Field label="مدة الصلاحية المرتفعة (دقيقة)" hint="تُقفل الصلاحية تلقائيًا بعد هذه المدة.">
                   <Input
                     type="number"
                     min={1}

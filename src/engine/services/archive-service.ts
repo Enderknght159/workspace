@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppError } from '../../shared/errors.js';
 import { newId } from '../../shared/ids.js';
@@ -225,6 +225,8 @@ export class ArchiveService {
         mkdirSync(join(sourceVolume.root, '90_trash'), { recursive: true });
         try {
           renameSync(sourceDir, trashDir);
+          const now = new Date();
+          utimesSync(trashDir, now, now);
           this.deps.db.run(
             "UPDATE assets SET status = 'archived' WHERE event_id = ? AND status = 'present'",
             candidate.eventId,

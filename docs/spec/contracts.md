@@ -44,12 +44,22 @@
 | GET | `/api/ingest/batches` | الدفعات |
 | GET | `/api/review/pending` | وظائف بانتظار مراجعة |
 | GET | `/api/archive/candidates` | مرشحات الأرشفة |
-| POST | `/api/archive/run` | `{ targetVolumeId, dryRun }` |
+| POST | `/api/archive/run` | `{ targetVolumeId, dryRun, eventIds? }` |
+| POST | `/api/archive/purge` | إفراغ سلة أقدم من السياسة |
 | GET | `/api/doctor` | آخر فحص |
-| POST | `/api/doctor/run` | فحص جديد |
+| POST | `/api/doctor/run` | `{ deep? }` |
 | GET | `/api/audit` | سجل التدقيق |
-| GET | `/api/settings` | إعدادات المكتب |
+| GET | `/api/settings` | إعدادات المكتب (منقّحة) |
 | PATCH | `/api/settings` | تعديل (صلاحية مرتفعة) |
+| GET | `/api/security/status` | حالة الصلاحية |
+| POST | `/api/security/password` | تعيين/تغيير كلمة المرور |
+| POST | `/api/security/recover` | `{ recoveryCode, password }` |
+| POST | `/api/elevate` | `{ password }` → توكن 10 دقائق |
+| GET | `/api/diagnostics` | حزمة تشخيص JSON |
+| POST | `/api/backup` | نسخة احتياطية الآن |
+| GET | `/api/backups` | قائمة النسخ |
+| GET | `/api/assets/:id/file` | بث أصل (يدعم Range) |
+| GET | `/api/jobs/:id/files/:name` | بث مخرَج (يدعم Range) |
 | GET | `/api/stream` | SSE |
 
 ## أحداث SSE

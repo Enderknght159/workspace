@@ -588,7 +588,7 @@ export class JobService {
 
   retry(id: string): JobDetail {
     const job = this.get(id);
-    if (!['failed', 'interrupted', 'cancelled'].includes(job.state)) {
+    if (!['failed', 'interrupted', 'cancelled', 'blocked', 'blocked_offline'].includes(job.state)) {
       throw new AppError('WS-5002', { state: job.state });
     }
     if (job.attempts >= job.maxAttempts && job.state !== 'cancelled') {

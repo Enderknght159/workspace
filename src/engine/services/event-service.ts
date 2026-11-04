@@ -233,6 +233,17 @@ export class EventService {
       );
       if ((open?.count ?? 0) > 0) throw new AppError('WS-4002', { openJobs: open?.count });
     }
+    if (to === 'cold') {
+      const verified = this.deps.db.get<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM archive_moves am
+         JOIN assets a ON a.id = am.asset_id
+         WHERE a.event_id = ? AND am.status = 'verified'`,
+        id,
+      );
+      if ((verified?.count ?? 0) === 0) {
+        throw new AppError('WS-4001', { reason: 'no_verified_archive' });
+      }
+    }
 
     const now = this.clock().toISOString();
     this.deps.db.run('UPDATE events SET state = ?, updated_at = ? WHERE id = ?', to, now, id);

@@ -263,7 +263,10 @@ export function EventDetail({ eventId }: { eventId: string }) {
                         إلغاء
                       </button>
                     )}
-                    {(job.state === 'failed' || job.state === 'interrupted') && (
+                    {(job.state === 'failed' ||
+                      job.state === 'interrupted' ||
+                      job.state === 'blocked' ||
+                      job.state === 'blocked_offline') && (
                       <button
                         type="button"
                         className="link small"
