@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "outDir": "dist/node",
+    "rootDir": "src",
+    "sourceMap": true,
+    "declaration": false,
+    "types": ["node"],
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/shared/**/*.ts", "src/engine/**/*.ts", "src/main/**/*.ts"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
+}

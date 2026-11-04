@@ -1,0 +1,53 @@
+{
+  "name": "workspace",
+  "productName": "Workspace",
+  "version": "0.1.0",
+  "description": "كل المكتب في نافذة واحدة — مكتب إعلامي محلي",
+  "private": true,
+  "type": "module",
+  "main": "dist/node/main/index.js",
+  "author": "Workspace",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n types,ui,app -c blue,magenta,green \"npm:dev:types\" \"npm:dev:ui\" \"npm:dev:app\"",
+    "dev:types": "tsc -p tsconfig.node.json --watch --preserveWatchOutput",
+    "dev:ui": "vite",
+    "dev:app": "wait-on dist/node/main/index.js tcp:5173 && cross-env WORKSPACE_DEV_SERVER=http://localhost:5173 electron .",
+    "build": "npm run build:node && npm run build:preload && npm run build:renderer",
+    "build:node": "tsc -p tsconfig.node.json",
+    "build:preload": "esbuild src/preload/index.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/preload/index.cjs",
+    "build:renderer": "vite build",
+    "start": "electron .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "engine": "node dist/node/engine/host.js",
+    "dist": "npm run build && electron-builder --win",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^45.2.2",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "prettier": "^3.6.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0",
+    "wait-on": "^9.5.1"
+  }
+}
