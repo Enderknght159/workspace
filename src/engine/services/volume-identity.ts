@@ -24,6 +24,10 @@ export interface PhysicalIdentity {
   sizeBytes: number | null;
 }
 
+export interface MountedDrive extends PhysicalIdentity {
+  root: string;
+}
+
 export const UNKNOWN_IDENTITY: PhysicalIdentity = {
   volumeGuid: null,
   serial: null,
@@ -127,4 +131,40 @@ export function assertVolumeRoot(root: string): void {
   const fingerprint = readFingerprint(root);
   if (fingerprint) return;
   mkdirSync(root, { recursive: true });
+}
+
+/**
+ * تعداد كل الأقراص الموصولة على ويندوز لاكتشاف تغيّر حرف القرص.
+ * تُستخدم عند «إعادة فحص» فقط، لا في كل فتح.
+ */
+export function listMountedDrives(timeoutMs = 10_000): MountedDrive[] {
+  if (process.platform !== 'win32') return [];
+  const script = [
+    'Get-Volume | Where-Object { $_.DriveLetter } |',
+    'Select-Object DriveLetter,UniqueId,SerialNumber,FileSystem,Size |',
+    'ConvertTo-Json -Compress',
+  ].join(' ');
+  try {
+    const output = execFileSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      { timeout: timeoutMs, windowsHide: true, encoding: 'utf8' },
+    ).trim();
+    if (!output) return [];
+    const parsed = JSON.parse(output) as
+      | { DriveLetter?: string; UniqueId?: string; SerialNumber?: string; FileSystem?: string; Size?: number }
+      | Array<{ DriveLetter?: string; UniqueId?: string; SerialNumber?: string; FileSystem?: string; Size?: number }>;
+    const rows = Array.isArray(parsed) ? parsed : [parsed];
+    return rows
+      .filter((row) => typeof row.DriveLetter === 'string' && row.DriveLetter.length > 0)
+      .map((row) => ({
+        root: `${row.DriveLetter}:\\`,
+        volumeGuid: row.UniqueId?.trim() ? row.UniqueId.trim() : null,
+        serial: row.SerialNumber?.trim() ? row.SerialNumber.trim() : null,
+        fsType: row.FileSystem?.trim() ? row.FileSystem.trim() : null,
+        sizeBytes: typeof row.Size === 'number' && row.Size > 0 ? row.Size : null,
+      }));
+  } catch {
+    return [];
+  }
 }

@@ -57,8 +57,7 @@ export class SecurityService {
     };
   }
 
-  setPassword(password: string, actorId: string | null): { recoveryCode: string } {
-    if (password.length < 6) throw new AppError('WS-0003', { field: 'password', minLength: 6 });
+  setPassword(password: string, actorId: string | null): { recoveryCode: string } {    if (password.length < 6) throw new AppError('WS-0003', { field: 'password', minLength: 6 });
     const recoveryCode = randomBytes(5).toString('hex').toUpperCase();
     this.settings.update(
       {
@@ -80,8 +79,7 @@ export class SecurityService {
     return { recoveryCode };
   }
 
-  elevate(password: string, actorId: string | null): ElevationResult {
-    const hash = this.settings.get().security.elevationHash;
+  elevate(password: string, actorId: string | null): ElevationResult {    const hash = this.settings.get().security.elevationHash;
     if (!hash) {
       return { token: 'open', expiresAt: null };
     }
@@ -121,8 +119,7 @@ export class SecurityService {
     return { token, expiresAt: new Date(expiresAt).toISOString() };
   }
 
-  isElevated(token: string | null): boolean {
-    if (!this.hasPassword()) return true;
+  isElevated(token: string | null): boolean {    if (!this.hasPassword()) return true;
     if (!token) return false;
     this.prune();
     const session = this.sessions.get(token);
@@ -131,6 +128,23 @@ export class SecurityService {
 
   requireElevation(token: string | null): void {
     if (!this.isElevated(token)) throw new AppError('WS-8001');
+  }
+
+  /** استرداد بكلمة المرور عند نسيانها. يستهلك رمز الاسترداد ويولّد رمزًا جديدًا. */
+  recover(recoveryCode: string, newPassword: string, actorId: string | null): { recoveryCode: string } {
+    const stored = this.settings.get().security.recoveryHash;
+    if (!stored) throw new AppError('WS-8001', { reason: 'no_recovery_code' });
+    const normalized = recoveryCode.trim().toUpperCase();
+    if (!verifySecret(normalized, stored)) throw new AppError('WS-8002', { reason: 'bad_recovery_code' });
+    const result = this.setPassword(newPassword, actorId);
+    this.audit.record({
+      actorId,
+      action: 'security.recovered',
+      entity: 'settings',
+      entityId: 'office.settings',
+      elevated: true,
+    });
+    return result;
   }
 
   private prune(): void {

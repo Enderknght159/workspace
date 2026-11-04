@@ -30,6 +30,7 @@ export interface OpenOfficeOptions {
   logger?: Logger;
   clock?: () => Date;
   volumeProbe?: (root: string) => import('../services/volume-identity.js').PhysicalIdentity;
+  volumeMountLister?: () => import('../services/volume-identity.js').MountedDrive[];
   commandRunner?: import('../services/doctor-service.js').CommandRunner;
 }
 
@@ -67,6 +68,7 @@ export class Office {
     lock: OfficeLock;
     clock?: () => Date;
     probe?: (root: string) => import('../services/volume-identity.js').PhysicalIdentity;
+    listMounts?: () => import('../services/volume-identity.js').MountedDrive[];
     commandRunner?: CommandRunner;
   }) {
     this.paths = options.paths;
@@ -85,6 +87,7 @@ export class Office {
       audit: this.audit,
       logger: this.logger,
       probe: options.probe,
+      listMounts: options.listMounts,
     });
     this.events = new EventService({
       db: this.db,
@@ -198,6 +201,7 @@ export class Office {
         lock,
         clock: options.clock,
         probe: options.volumeProbe,
+        listMounts: options.volumeMountLister,
         commandRunner: options.commandRunner,
       });
     } catch (error) {

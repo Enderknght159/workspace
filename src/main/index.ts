@@ -5,6 +5,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  Notification,
   powerSaveBlocker,
   shell,
   Tray,
@@ -42,6 +43,9 @@ let powerBlockerId: number | null = null;
 let quitAfterIdle = false;
 let pollTimer: NodeJS.Timeout | null = null;
 let engineToken = '';
+let lastFailed: number | null = null;
+let lastReview: number | null = null;
+let lastCompletedBatches: number | null = null;
 
 const officeDir =
   process.env.WORKSPACE_OFFICE ??
@@ -170,18 +174,29 @@ function startEngine(): Promise<EngineHandshake> {
 }
 
 async function engineInfo(): Promise<EngineInfo | null> {
+  return engineFetch<EngineInfo>('/api/info');
+}
+
+async function engineFetch<T>(path: string): Promise<T | null> {
   if (!bridgeInfo) return null;
   try {
-    const response = await fetch(`${bridgeInfo.apiBase}/api/info`, {
+    const response = await fetch(`${bridgeInfo.apiBase}${path}`, {
       headers: { authorization: `Bearer ${bridgeInfo.token}` },
       signal: AbortSignal.timeout(2500),
     });
     if (!response.ok) return null;
-    const body = (await response.json()) as { data: EngineInfo };
+    const body = (await response.json()) as { data: T };
     return body.data;
   } catch {
     return null;
   }
+}
+
+function notify(title: string, body: string): void {
+  if (!Notification.isSupported()) return;
+  const notification = new Notification({ title, body, silent: false });
+  notification.on('click', () => showWindow());
+  notification.show();
 }
 
 function applyPowerBlocker(running: boolean): void {
@@ -200,9 +215,25 @@ function startPolling(): void {
   pollTimer = setInterval(() => {
     void engineInfo().then((info) => {
       applyPowerBlocker((info?.queue.running ?? 0) > 0);
-      if (quitAfterIdle && (info?.queue.running ?? 0) === 0) {
-        quitNow();
+      if (info) {
+        if (lastFailed !== null && info.queue.failed > lastFailed) {
+          notify('فشلت وظيفة', 'افتح سجل النشاط لمعرفة السبب ثم أعد المحاولة.');
+        }
+        if (lastReview !== null && info.queue.review > lastReview) {
+          notify('مخرَج جديد بانتظار المراجعة', 'راجع المخرجات واعتمدها أو أعدها للتعديل.');
+        }
+        lastFailed = info.queue.failed;
+        lastReview = info.queue.review;
       }
+      if (quitAfterIdle && (info?.queue.running ?? 0) === 0) quitNow();
+    });
+    void engineFetch<Array<{ state: string }>>('/api/ingest/batches').then((batches) => {
+      if (!batches) return;
+      const completed = batches.filter((batch) => batch.state === 'completed').length;
+      if (lastCompletedBatches !== null && completed > lastCompletedBatches) {
+        notify('اكتمل تفريغ بطاقة', 'تحقق من الوارد وابدأ العمل على الحدث الجديد.');
+      }
+      lastCompletedBatches = completed;
     });
   }, 5000);
 }
@@ -417,6 +448,15 @@ function registerIpc(): void {  ipcMain.on('app:bridge-info', (event) => {
   });
   ipcMain.handle('app:quit', async () => requestQuit());
   ipcMain.handle('app:hide', async () => mainWindow?.hide());
+  ipcMain.handle('app:get-startup', async () => {
+    if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_DIR) return false;
+    return app.getLoginItemSettings().openAtLogin;
+  });
+  ipcMain.handle('app:set-startup', async (_event, enabled: boolean) => {
+    if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_DIR) return false;
+    app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath });
+    return app.getLoginItemSettings().openAtLogin;
+  });
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -464,12 +504,22 @@ export { engineReady };
 async function setupUpdates(): Promise<void> {
   if (!app.isPackaged) return;
   try {
-    const { autoUpdater } = await import('electron-updater');
-    autoUpdater.autoDownload = false;
-    const feed = process.env.WORKSPACE_UPDATE_FEED;
-    if (feed) {
-      autoUpdater.setFeedURL({ provider: 'generic', url: feed });
+    const imported = (await import('electron-updater')) as unknown as {
+      autoUpdater?: import('electron-updater').AppUpdater;
+      default?: { autoUpdater?: import('electron-updater').AppUpdater };
+    };
+    const autoUpdater = imported.autoUpdater ?? imported.default?.autoUpdater;
+    if (!autoUpdater) {
+      log('updater.unavailable');
+      return;
     }
+    const feed = process.env.WORKSPACE_UPDATE_FEED;
+    if (!feed) {
+      log('updater.disabled');
+      return;
+    }
+    autoUpdater.autoDownload = false;
+    autoUpdater.setFeedURL({ provider: 'generic', url: feed });
     autoUpdater.on('error', (error) => log('updater.error', { message: String(error) }));
     autoUpdater.on('update-available', (info) => log('updater.available', { version: info.version }));
     const result = await autoUpdater.checkForUpdates();

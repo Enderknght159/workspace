@@ -64,6 +64,8 @@ function installDevBridge() {  const params = new URLSearchParams(window.locatio
     showItemInFolder: async () => undefined,
     quit: async () => undefined,
     hideWindow: async () => undefined,
+    getStartup: async () => false,
+    setStartup: async () => false,
   };
   window.workspace = dev;
   return dev;

@@ -199,6 +199,11 @@ export const setElevationPasswordRequest = z.object({
   password: z.string().min(6).max(500),
 });
 
+export const recoverPasswordRequest = z.object({
+  recoveryCode: z.string().min(4).max(100),
+  password: z.string().min(6).max(500),
+});
+
 export const listQuery = z.object({
   state: z.string().optional(),
   q: z.string().max(200).optional(),

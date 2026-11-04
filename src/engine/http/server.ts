@@ -19,6 +19,7 @@ import {
   jobIdParams,
   listQuery,
   publishJobRequest,
+  recoverPasswordRequest,
   registerVolumeRequest,
   reviewJobRequest,
   setElevationPasswordRequest,
@@ -279,6 +280,10 @@ function buildRoutes(): Route[] {
     route('POST', '/api/elevate', ({ office, body, actorId }) =>
       office.security.elevate(parseBody(elevateRequest, body).password, actorId),
     ),
+    route('POST', '/api/security/recover', ({ office, body, actorId }) => {
+      const request = parseBody(recoverPasswordRequest, body);
+      return office.security.recover(request.recoveryCode, request.password, actorId);
+    }),
 
     route('GET', '/api/assets/:id/file', ({ office, params, res }) => {
       const asset = office.db.get<{

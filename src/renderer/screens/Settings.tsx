@@ -65,6 +65,17 @@ export function Settings() {
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [recoverOpen, setRecoverOpen] = useState(false);
+  const [recoveryInput, setRecoveryInput] = useState('');
+  const [recoveryPassword, setRecoveryPassword] = useState('');
+  const [startup, setStartup] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void window.workspace
+      ?.getStartup()
+      .then(setStartup)
+      .catch(() => setStartup(false));
+  }, []);
 
   useEffect(() => {
     if (settings.data) setForm(settings.data);
@@ -157,8 +168,36 @@ export function Settings() {
     }
   }
 
-  async function backupNow() {
+  async function recoverPassword() {
+    if (recoveryInput.trim().length < 4) {
+      toast('أدخل رمز الاسترداد أولًا.', 'error');
+      return;
+    }
+    if (recoveryPassword.length < 6) {
+      toast('كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل.', 'error');
+      return;
+    }
     setBusy(true);
+    try {
+      const result = await api<{ recoveryCode: string }>('/api/security/recover', {
+        method: 'POST',
+        body: { recoveryCode: recoveryInput.trim(), password: recoveryPassword },
+      });
+      setRecoverOpen(false);
+      setRecoveryInput('');
+      setRecoveryPassword('');
+      setRecoveryCode(result.recoveryCode);
+      security.reload();
+      settings.reload();
+      toast('استُعيدت كلمة المرور. احفظ رمز الاسترداد الجديد.', 'success');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'تعذّر الاسترداد.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function backupNow() {    setBusy(true);
     try {
       const result = await runElevated(() =>
         api<{ name: string }>('/api/backup', { method: 'POST' }),
@@ -169,6 +208,17 @@ export function Settings() {
       toast(error instanceof Error ? error.message : 'تعذّرت النسخة الاحتياطية.', 'error');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function toggleStartup() {
+    if (!window.workspace || startup === null) return;
+    try {
+      const next = await window.workspace.setStartup(!startup);
+      setStartup(next);
+      toast(next ? 'سيبدأ Workspace مع ويندوز.' : 'أُلغي البدء التلقائي.', 'success');
+    } catch {
+      toast('تعذّر تغيير إعداد البدء التلقائي.', 'error');
     }
   }
 
@@ -778,6 +828,11 @@ export function Settings() {
                 <Button variant="primary" icon="shield" onClick={() => setPasswordOpen(true)}>
                   {security.data?.hasPassword ? 'تغيير كلمة المرور' : 'تعيين كلمة مرور'}
                 </Button>
+                {security.data?.hasPassword && (
+                  <Button variant="ghost" onClick={() => setRecoverOpen(true)}>
+                    نسيت كلمة المرور؟
+                  </Button>
+                )}
               </div>
               <div className="form-grid">
                 <Field label="قفل الخمول (دقيقة)">
@@ -819,6 +874,30 @@ export function Settings() {
 
         {tab === 'data' && (
           <div className="stack">
+            <Card>
+              <SectionHeader
+                title="بدء التشغيل"
+                description="فتح Workspace تلقائيًا مع ويندوز (النسخة المثبتة فقط)."
+                action={
+                  <Button
+                    size="sm"
+                    icon="settings"
+                    onClick={() => void toggleStartup()}
+                    disabled={!window.workspace?.isPackaged || startup === null}
+                  >
+                    {startup ? 'إيقاف البدء التلقائي' : 'تشغيل مع ويندوز'}
+                  </Button>
+                }
+              />
+              <p className="muted small">
+                {window.workspace?.isPackaged
+                  ? startup
+                    ? 'مفعّل: يفتح التطبيق تلقائيًا عند بدء التشغيل.'
+                    : 'غير مفعّل.'
+                  : 'غير متاح في وضع التطوير أو النسخة المحمولة.'}
+              </p>
+            </Card>
+
             <Card>
               <SectionHeader
                 title="النسخ الاحتياطي"
@@ -913,9 +992,43 @@ export function Settings() {
       </Modal>
 
       <Modal
+        open={recoverOpen}
+        title="استرداد بكلمة المرور"
+        description="استخدم رمز الاسترداد الذي حفظته خارج الجهاز. سيُستهلك ويُولَّد رمز جديد."
+        onClose={() => setRecoverOpen(false)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRecoverOpen(false)}>
+              إلغاء
+            </Button>
+            <Button variant="primary" loading={busy} onClick={() => void recoverPassword()}>
+              استرداد
+            </Button>
+          </>
+        }
+      >
+        <div className="form-grid">
+          <Field label="رمز الاسترداد" span required>
+            <Input
+              dir="ltr"
+              value={recoveryInput}
+              onChange={(event) => setRecoveryInput(event.target.value)}
+              placeholder="A1B2C3D4E5"
+            />
+          </Field>
+          <Field label="كلمة المرور الجديدة" span required>
+            <Input
+              type="password"
+              value={recoveryPassword}
+              onChange={(event) => setRecoveryPassword(event.target.value)}
+            />
+          </Field>
+        </div>
+      </Modal>
+
+      <Modal
         open={recoveryCode !== null}
-        title="رمز الاسترداد"
-        description="يُعرض مرة واحدة فقط. احفظه خارج هذا الجهاز."
+        title="رمز الاسترداد"        description="يُعرض مرة واحدة فقط. احفظه خارج هذا الجهاز."
         onClose={() => setRecoveryCode(null)}
         footer={
           <Button variant="primary" onClick={() => setRecoveryCode(null)}>

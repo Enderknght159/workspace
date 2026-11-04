@@ -14,4 +14,6 @@ export interface WorkspaceBridge extends BridgeInfo {
   showItemInFolder(path: string): Promise<void>;
   quit(): Promise<void>;
   hideWindow(): Promise<void>;
+  getStartup(): Promise<boolean>;
+  setStartup(enabled: boolean): Promise<boolean>;
 }

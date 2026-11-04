@@ -17,7 +17,10 @@ export interface TestOffice {
 
 export async function withOffice(
   fn: (ctx: TestOffice) => void | Promise<void>,
-  options: { probe?: (root: string) => PhysicalIdentity } = {},
+  options: {
+    probe?: (root: string) => PhysicalIdentity;
+    listMounts?: () => import('../services/volume-identity.js').MountedDrive[];
+  } = {},
 ): Promise<void> {
   const root = makeTempDir();
   const volumeRoot = join(root, 'volume');
@@ -25,6 +28,7 @@ export async function withOffice(
   const office = Office.open({
     dir: join(root, 'office'),
     volumeProbe: options.probe ?? (() => UNKNOWN_IDENTITY),
+    volumeMountLister: options.listMounts ?? (() => []),
     logger: createLogger({ level: 'error' }),
   });
   try {

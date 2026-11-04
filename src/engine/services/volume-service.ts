@@ -9,9 +9,11 @@ import type { AuditService } from './audit-service.js';
 import { freeBytesAt, MachineProfileStore } from './machine-profile.js';
 import {
   assertVolumeRoot,
+  listMountedDrives,
   probePhysicalIdentity,
   readFingerprint,
   writeFingerprint,
+  type MountedDrive,
   type PhysicalIdentity,
 } from './volume-identity.js';
 import type { Logger } from '../util/logger.js';
@@ -22,6 +24,7 @@ export interface VolumeServiceDeps {
   audit: AuditService;
   logger: Logger;
   probe?: (root: string) => PhysicalIdentity;
+  listMounts?: () => MountedDrive[];
 }
 
 interface VolumeRow {
@@ -154,6 +157,7 @@ export class VolumeService {
   scan(): VolumeView[] {
     const rows = this.deps.db.all<VolumeRow>('SELECT * FROM volumes');
     const now = new Date().toISOString();
+    this.refreshMounts(rows);
     for (const row of rows) {
       const root = this.deps.profile.mountOf(row.id);
       let status: Volume['status'] = 'offline';
@@ -186,8 +190,34 @@ export class VolumeService {
     return this.list();
   }
 
-  private mapRow(row: VolumeRow): VolumeView {
-    const root = this.deps.profile.mountOf(row.id);
+  /**
+   * يطابق بصمات الأقراص على كل الأحرف الحالية، فينجو المكتب من تغيّر حرف القرص.
+   * لا يسجّل قرصًا جديدًا تلقائيًا: القرص الغريب لا يُلمس.
+   */
+  private refreshMounts(rows: VolumeRow[]): void {
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    let mounts: MountedDrive[] = [];
+    try {
+      mounts = (this.deps.listMounts ?? listMountedDrives)();
+    } catch {
+      return;
+    }
+    for (const mount of mounts) {
+      const fingerprint = readFingerprint(mount.root);
+      if (!fingerprint) continue;
+      const row = byId.get(fingerprint.volume_id);
+      if (!row) continue;
+      const current = this.deps.profile.mountOf(row.id);
+      const matchesGuid =
+        !row.volume_guid || !mount.volumeGuid || row.volume_guid === mount.volumeGuid;
+      if (matchesGuid && (!current || !existsSync(current))) {
+        this.deps.profile.setMount(row.id, mount.root);
+        this.deps.logger.info('volume.remounted', { volumeId: row.id, root: mount.root });
+      }
+    }
+  }
+
+  private mapRow(row: VolumeRow): VolumeView {    const root = this.deps.profile.mountOf(row.id);
     return {
       id: row.id,
       label: row.label,

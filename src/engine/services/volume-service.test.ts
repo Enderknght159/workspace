@@ -92,4 +92,29 @@ describe('volume identity', () => {
       expect(office.volumes.get(volume.id)?.status).toBe('foreign');
     });
   });
+
+  it('remounts a volume when its drive letter changes', async () => {
+    let movedRoot = '';
+    await withOffice(
+      ({ office, root, volumeRoot }) => {
+        const volume = office.volumes.register(
+          { root: volumeRoot, label: 'Hot', kind: 'hot' },
+          null,
+          office.config.id,
+        );
+        movedRoot = join(root, 'drive-Z');
+        renameSync(volumeRoot, movedRoot);
+        const scanned = office.volumes.scan();
+        const view = scanned.find((entry) => entry.id === volume.id);
+        expect(view?.root).toBe(movedRoot);
+        expect(view?.status).toBe('connected');
+      },
+      {
+        listMounts: () =>
+          movedRoot
+            ? [{ root: movedRoot, volumeGuid: null, serial: null, fsType: null, sizeBytes: null }]
+            : [],
+      },
+    );
+  });
 });
