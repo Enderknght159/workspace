@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+release/
+out/
+*.tsbuildinfo
+
+# Local data and secrets
+.env
+.env.*
+!.env.example
+/offices/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Tests
+coverage/
+test-results/
+playwright-report/
