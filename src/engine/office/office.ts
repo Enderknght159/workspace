@@ -1,3 +1,5 @@
+import { copyFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { Database } from '../db/database.js';
 import { openDriver } from '../db/driver.js';
 import { migrate } from '../db/migrations.js';
@@ -5,7 +7,7 @@ import { AppError } from '../../shared/errors.js';
 import { createLogger, type Logger } from '../util/logger.js';
 import { EventBus } from '../util/event-bus.js';
 import { machineId } from '../util/misc.js';
-import { loadOrCreateOfficeConfig, type OfficeConfig } from './config.js';
+import { loadOrCreateOfficeConfig, writeJsonAtomic, type OfficeConfig } from './config.js';
 import { OfficeLock, lockFileFor } from './lock.js';
 import { OfficePaths } from './paths.js';
 import { AuditService } from '../services/audit-service.js';
@@ -18,6 +20,8 @@ import { IngestService } from '../services/ingest-service.js';
 import { StyleService } from '../services/style-service.js';
 import { JobService } from '../services/job-service.js';
 import { JobQueue } from '../services/job-queue.js';
+import { SecurityService } from '../services/security-service.js';
+import { ArchiveService } from '../services/archive-service.js';
 import { APP_SCHEMA } from '../../shared/constants.js';
 
 export interface OpenOfficeOptions {
@@ -49,6 +53,8 @@ export class Office {
   readonly jobs: JobService;
   readonly queue: JobQueue;
   readonly doctor: DoctorService;
+  readonly security: SecurityService;
+  readonly archive: ArchiveService;
   readonly machineId: string;
   private readonly lock: OfficeLock;
   private closed = false;
@@ -125,6 +131,16 @@ export class Office {
       paths: this.paths,
     });
     this.jobs.attachQueue(this.queue);
+    this.security = new SecurityService(this.settings, this.audit, this.logger);
+    this.archive = new ArchiveService({
+      db: this.db,
+      paths: this.paths,
+      volumes: this.volumes,
+      events: this.events,
+      settings: this.settings,
+      audit: this.audit,
+      logger: this.logger,
+    });
     this.doctor = new DoctorService({
       profile: this.profile,
       bus: this.bus,
@@ -209,5 +225,54 @@ export class Office {
 
   get isClosed(): boolean {
     return this.closed;
+  }
+
+  rename(name: string): void {
+    const trimmed = name.trim();
+    if (trimmed.length === 0) throw new AppError('WS-0003', { field: 'name' });
+    this.config.name = trimmed;
+    writeJsonAtomic(this.paths.officeFile, this.config);
+    this.db.run('UPDATE office SET name = ? WHERE id = ?', trimmed, this.config.id);
+    this.logger.info('office.renamed', { officeId: this.config.id });
+  }
+
+  backup(): { name: string; bytes: number; createdAt: string } {
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const name = `workspace-${stamp}.db`;
+    const target = join(this.paths.backupsDir, name);
+    copyFileSync(this.paths.dbFile, target);
+    this.pruneBackups(14);
+    const size = statSync(target).size;
+    this.audit.record({
+      actorId: null,
+      action: 'office.backup',
+      entity: 'office',
+      entityId: this.config.id,
+      after: { name, bytes: size },
+      elevated: true,
+    });
+    return { name, bytes: size, createdAt: new Date().toISOString() };
+  }
+
+  listBackups(): Array<{ name: string; bytes: number; createdAt: string }> {
+    return readdirSync(this.paths.backupsDir)
+      .filter((name) => name.endsWith('.db'))
+      .map((name) => {
+        const stats = statSync(join(this.paths.backupsDir, name));
+        return { name, bytes: stats.size, createdAt: stats.mtime.toISOString() };
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  private pruneBackups(keep: number): void {
+    const backups = this.listBackups();
+    for (const backup of backups.slice(keep)) {
+      try {
+        unlinkSync(join(this.paths.backupsDir, basename(backup.name)));
+      } catch {
+        // تجاهل.
+      }
+    }
   }
 }

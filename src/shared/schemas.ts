@@ -64,6 +64,7 @@ export const officeSettingsSchema = z.object({
   }),
   security: z.object({
     elevationHash: z.string().nullable(),
+    recoveryHash: z.string().nullable(),
     idleLockMinutes: z.number().int().min(1).max(240),
   }),
   publish: z.object({
@@ -102,7 +103,7 @@ export const DEFAULT_SETTINGS: OfficeSettings = {
     mockDelayMs: 600,
   },
   ui: { theme: 'dark', reduceMotion: false },
-  security: { elevationHash: null, idleLockMinutes: 10 },
+  security: { elevationHash: null, recoveryHash: null, idleLockMinutes: 10 },
   publish: { platforms: ['youtube', 'facebook', 'instagram', 'tiktok', 'whatsapp'] },
 };
 
@@ -182,7 +183,11 @@ export const settingsPatchRequest = z.object({
   archive: officeSettingsSchema.shape.archive.partial().optional(),
   agent: officeSettingsSchema.shape.agent.partial().optional(),
   ui: officeSettingsSchema.shape.ui.partial().optional(),
-  security: officeSettingsSchema.shape.security.partial().optional(),
+  security: z
+    .object({
+      idleLockMinutes: z.number().int().min(1).max(240).optional(),
+    })
+    .optional(),
   publish: officeSettingsSchema.shape.publish.partial().optional(),
 });
 

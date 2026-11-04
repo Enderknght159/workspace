@@ -268,6 +268,24 @@ export interface ArchiveCandidate {
   openJobs: number;
 }
 
+export interface ArchiveItemResult {
+  eventId: string;
+  title: string;
+  status: 'copied' | 'skipped' | 'failed';
+  assets: number;
+  bytes: number;
+  error: string | null;
+}
+
+export interface ArchiveReport {
+  dryRun: boolean;
+  targetVolumeId: string;
+  items: ArchiveItemResult[];
+  copied: number;
+  failed: number;
+  bytes: number;
+}
+
 export interface Page<T> {
   items: T[];
   total: number;

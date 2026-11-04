@@ -456,11 +456,13 @@ function suggestEvent(
 ): IngestPreview['suggested'] {
   const folder = basename(source);
   const lower = folder.toLowerCase();
-  let kind: IngestPreview['suggested']['kind'] = 'other';
-  if (/خطب|khutbah|jumu|friday/.test(lower)) kind = 'khutbah';
-  else if (/درس|lesson|dars/.test(lower)) kind = 'lesson';
-  else if (/عيد|فعالية|event|iftar|حفل/.test(lower)) kind = 'event';
-  else if (/تصوير|photo|shoot/.test(lower)) kind = 'photoshoot';
+  let kind: IngestPreview['suggested']['kind'] = input.kind ?? 'other';
+  if (!input.kind) {
+    if (/خطب|khutbah|jumu|friday/.test(lower)) kind = 'khutbah';
+    else if (/درس|lesson|dars/.test(lower)) kind = 'lesson';
+    else if (/عيد|فعالية|event|iftar|حفل/.test(lower)) kind = 'event';
+    else if (/تصوير|photo|shoot/.test(lower)) kind = 'photoshoot';
+  }
 
   const dateMatch = /(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})/.exec(folder);
   let occurredAt = input.occurredAt;

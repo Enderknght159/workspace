@@ -1,12 +1,21 @@
 import { z } from 'zod';
 import { AppError } from '../../shared/errors.js';
-import { DEFAULT_SETTINGS, officeSettingsSchema, type OfficeSettings, type SettingsPatchRequest } from '../../shared/schemas.js';
+import {
+  DEFAULT_SETTINGS,
+  officeSettingsSchema,
+  type OfficeSettings,
+  type SettingsPatchRequest,
+} from '../../shared/schemas.js';
 import type { Database } from '../db/database.js';
 import type { AuditService } from './audit-service.js';
 import type { Logger } from '../util/logger.js';
 import { deepMerge } from '../util/misc.js';
 
 const SETTINGS_KEY = 'office.settings';
+
+export type SettingsPatchInput =
+  | SettingsPatchRequest
+  | { security?: Partial<OfficeSettings['security']> };
 
 export class SettingsService {
   private cache: OfficeSettings | null = null;
@@ -36,7 +45,7 @@ export class SettingsService {
     }
   }
 
-  update(patch: SettingsPatchRequest, actorId: string | null): OfficeSettings {
+  update(patch: SettingsPatchInput, actorId: string | null): OfficeSettings {
     const before = this.get();
     const merged = deepMerge(before, patch);
     const parsed = officeSettingsSchema.safeParse(merged);
