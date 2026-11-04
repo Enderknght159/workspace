@@ -8,6 +8,7 @@ export interface Migration {
 }
 
 const MIGRATIONS: Migration[] = [
+  // قاعدة صارمة: لا تعدّل أي ترحيل بعد إصدار مكتب حقيقي. أضف ترحيلًا جديدًا برقم أكبر.
   {
     version: 1,
     name: 'init',
