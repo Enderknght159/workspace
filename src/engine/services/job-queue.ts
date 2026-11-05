@@ -77,6 +77,20 @@ export class JobQueue {
     return this.current !== null;
   }
 
+  async checkAgent(): Promise<{ ok: boolean; adapter: string; message: string | null }> {
+    const adapter = this.createAdapter();
+    try {
+      const ok = await adapter.isAvailable();
+      return {
+        ok,
+        adapter: adapter.id,
+        message: ok ? null : 'تعذّر الاتصال بالوكيل. تحقق من تثبيت OpenCode وتسجيل الدخول.',
+      };
+    } catch (error) {
+      return { ok: false, adapter: adapter.id, message: String(error) };
+    }
+  }
+
   private schedule(delayMs?: number): void {
     if (this.stopped) return;
     if (this.timer) clearTimeout(this.timer);
@@ -207,7 +221,7 @@ export class JobQueue {
     const agent = this.deps.settings.get().agent;
     if (agent.adapter === 'opencode') {
       return new OpenCodeAdapter({
-        baseUrl: agent.baseUrl,
+        command: agent.opencodePath,
         model: agent.model,
         logger: this.deps.logger,
       });

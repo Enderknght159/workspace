@@ -331,6 +331,85 @@ p {
   font-size: 11.5px;
 }
 
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+  color: var(--text);
+}
+.user-chip:hover {
+  border-color: var(--line-strong);
+}
+.user-chip__avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(145deg, var(--gold-strong), var(--gold));
+  color: #17120a;
+  font-weight: 700;
+  font-size: 12px;
+  flex: none;
+}
+.user-chip__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+}
+.user-chip__text strong {
+  font-size: 11.5px;
+}
+.user-chip__text small {
+  font-size: 10px;
+  color: var(--faint);
+}
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.user-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text);
+  cursor: pointer;
+  text-align: start;
+}
+.user-option > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.user-option small {
+  color: var(--faint);
+  font-size: 10.5px;
+}
+.user-option.is-active {
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+  background: var(--panel-2);
+}
+.user-add {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .content {
   width: 100%;
   max-width: 1560px;
@@ -1146,6 +1225,12 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.asset__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
 
 .job {
   display: flex;
@@ -1256,6 +1341,44 @@ p {
   gap: 4px;
   max-height: 230px;
   overflow: auto;
+}
+.file-list--select {
+  max-height: 360px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+.file-list__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 4px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 2px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.file-row--select {
+  padding: 6px 4px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.file-row--select:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.file-row--select input {
+  accent-color: var(--gold);
+  width: 14px;
+  height: 14px;
 }
 .file-row {
   display: flex;
@@ -1409,8 +1532,62 @@ p {
   border-color: color-mix(in srgb, var(--gold) 25%, var(--line));
 }
 
-/* ---------- tables ---------- */
-.table {
+/* ---------- edit tasks ---------- */
+.edit-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.edit-task-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text);
+  cursor: pointer;
+  text-align: start;
+}
+.edit-task-row:hover {
+  border-color: var(--line-strong);
+}
+.edit-task-row.is-active {
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+  background: var(--panel-2);
+}
+.edit-task-row__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--gold);
+  flex: none;
+}
+.edit-task-row__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.edit-task-row__body strong {
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.edit-detail-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ---------- tables ---------- */.table {
   display: flex;
   flex-direction: column;
 }

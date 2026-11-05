@@ -54,6 +54,7 @@ export const officeSettingsSchema = z.object({
   agent: z.object({
     adapter: z.enum(['mock', 'opencode']),
     baseUrl: z.string().min(1),
+    opencodePath: z.string().min(1),
     model: z.string().nullable(),
     timeoutMinutes: z.number().int().min(1).max(1440),
     mockDelayMs: z.number().int().min(0).max(60_000),
@@ -98,6 +99,7 @@ export const DEFAULT_SETTINGS: OfficeSettings = {
   agent: {
     adapter: 'mock',
     baseUrl: 'http://127.0.0.1:4096',
+    opencodePath: 'opencode',
     model: null,
     timeoutMinutes: 120,
     mockDelayMs: 600,
@@ -168,6 +170,50 @@ export const ingestPreviewRequest = z.object({
   title: z.string().min(2).max(200).optional(),
   slug: slug.optional(),
   occurredAt: dateOnly.optional(),
+  /** المسارات النسبية المحددة؛ غيابها = كل الملفات. */
+  selection: z.array(z.string().min(1).max(1000)).max(100_000).optional(),
+  mode: z.enum(['copy', 'move']).optional(),
+});
+
+export const relocateAssetRequest = z.object({
+  targetEventId: identifier,
+  mode: z.enum(['copy', 'move']),
+});
+
+export const trashSourcesRequest = z.object({
+  keepOutputs: z.literal(true),
+  confirmTitle: z.string().min(1).max(200),
+});
+
+export const createUserRequest = z.object({
+  name: z.string().min(2).max(80),
+  role: z.enum(['owner', 'editor', 'reviewer', 'member']).default('member'),
+});
+
+export const updateUserRequest = z.object({
+  name: z.string().min(2).max(80).optional(),
+  role: z.enum(['owner', 'editor', 'reviewer', 'member']).optional(),
+  active: z.boolean().optional(),
+});
+
+export const createEditTaskRequest = z.object({
+  eventId: identifier,
+  kind: z.enum(['full', 'reel', 'khutbah']),
+  title: z.string().min(1).max(200).optional(),
+  assetIds: z.array(identifier).min(1).max(200).optional(),
+  notes: z.string().max(4000).optional(),
+});
+
+export const updateEditTaskRequest = z.object({
+  title: z.string().min(1).max(200).optional(),
+  state: z
+    .enum(['planned', 'project_ready', 'editing', 'exported', 'review', 'approved', 'archived', 'cancelled'])
+    .optional(),
+  notes: z.string().max(4000).optional(),
+});
+
+export const registerEditExportRequest = z.object({
+  path: z.string().min(3).max(2000),
 });
 
 export const archiveRunRequest = z.object({
@@ -240,3 +286,8 @@ export type IngestPreviewRequest = z.infer<typeof ingestPreviewRequest>;
 export type ArchiveRunRequest = z.infer<typeof archiveRunRequest>;
 export type SettingsPatchRequest = z.infer<typeof settingsPatchRequest>;
 export type ListQuery = z.infer<typeof listQuery>;
+export type CreateEditTaskRequest = z.infer<typeof createEditTaskRequest>;
+export type UpdateEditTaskRequest = z.infer<typeof updateEditTaskRequest>;
+export type RegisterEditExportRequest = z.infer<typeof registerEditExportRequest>;
+export type RelocateAssetRequest = z.infer<typeof relocateAssetRequest>;
+export type CreateUserRequest = z.infer<typeof createUserRequest>;

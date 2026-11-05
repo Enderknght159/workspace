@@ -18,6 +18,8 @@ asarUnpack:
 extraResources:
   - from: build/icon.png
     to: build/icon.png
+  - from: integrations/premiere/cep
+    to: premiere-bridge
 win:
   target:
     - target: nsis

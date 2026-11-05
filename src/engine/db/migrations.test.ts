@@ -33,14 +33,16 @@ describe('database bootstrap', () => {
         'ingest_files',
         'tasks',
         'audit_log',
+        'move_journal',
+        'edit_tasks',
+        'edit_task_assets',
         'schema_migrations',
       ]) {
         expect(tables).toContain(expected);
       }
 
-      const migrations = office.db.all<{ version: number }>('SELECT version FROM schema_migrations');
-      expect(migrations).toHaveLength(1);
-      expect(migrations[0]?.version).toBe(1);
+      const migrations = office.db.all<{ version: number }>('SELECT version FROM schema_migrations ORDER BY version');
+      expect(migrations.map((row) => row.version)).toEqual([1, 2]);
     });
   });
 

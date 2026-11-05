@@ -65,7 +65,7 @@ export interface Asset {
   width: number | null;
   height: number | null;
   capturedAt: string | null;
-  status: 'present' | 'missing' | 'archived';
+  status: 'present' | 'missing' | 'archived' | 'trashed';
   duplicateOf: string | null;
   createdAt: string;
 }
@@ -179,6 +179,9 @@ export interface IngestBatch {
   copiedFiles: number;
   verifiedFiles: number;
   bytes: number;
+  deletedSources: number;
+  mode: 'copy' | 'move';
+  sourceRemovable: boolean;
   error: string | null;
   startedAt: string;
   finishedAt: string | null;
@@ -194,9 +197,11 @@ export interface IngestFile {
 
 export interface IngestPreview {
   source: string;
-  files: Array<{ relPath: string; bytes: number; kind: AssetKind }>;
+  files: Array<{ relPath: string; bytes: number; kind: AssetKind; selected: boolean }>;
   totalFiles: number;
   totalBytes: number;
+  selectedFiles: number;
+  selectedBytes: number;
   duplicates: Array<{ relPath: string; assetId: string }>;
   suggested: {
     kind: EventKind;
@@ -208,6 +213,8 @@ export interface IngestPreview {
   warnings: string[];
   blocked: boolean;
   blockReason: string | null;
+  sourceRemovable: boolean;
+  recommendedMode: 'copy' | 'move';
 }
 
 export type ToolStatus = 'ok' | 'warn' | 'fail' | 'unknown';
@@ -291,6 +298,70 @@ export interface Page<T> {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  role: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface MoveJournalEntry {
+  id: string;
+  assetId: string | null;
+  sourcePath: string;
+  targetVolumeId: string;
+  targetRelPath: string;
+  sha256: string;
+  bytes: number;
+  mode: 'copy' | 'move';
+  action: 'ingest' | 'relocate' | 'undo';
+  state: 'completed' | 'undone';
+  createdAt: string;
+  undoneAt: string | null;
+}
+
+export type EditTaskState =
+  | 'planned'
+  | 'project_ready'
+  | 'editing'
+  | 'exported'
+  | 'review'
+  | 'approved'
+  | 'archived'
+  | 'cancelled';
+
+export type EditTaskKind = 'full' | 'reel' | 'khutbah';
+
+export interface EditTask {
+  id: string;
+  eventId: string;
+  eventTitle: string;
+  kind: EditTaskKind;
+  title: string;
+  state: EditTaskState;
+  projectRel: string | null;
+  outputRel: string | null;
+  subtitleRel: string | null;
+  sequenceName: string | null;
+  exportedFileRel: string | null;
+  externalOutputPath: string | null;
+  exportedBytes: number | null;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EditTaskDetail extends EditTask {
+  projectPath: string | null;
+  outputPath: string | null;
+  subtitlePath: string | null;
+  scriptPath: string | null;
+  jobFilePath: string | null;
+  sources: Array<{ assetId: string; relPath: string; kind: string; bytes: number }>;
 }
 
 export interface EngineInfo {

@@ -43,6 +43,20 @@
 | POST | `/api/ingest/start` | بدء تفريغ |
 | GET | `/api/ingest/batches` | الدفعات |
 | GET | `/api/review/pending` | وظائف بانتظار مراجعة |
+| GET | `/api/edit-tasks` | مهام المونتاج (`eventId`) |
+| POST | `/api/edit-tasks` | إنشاء مهمة ومشروع مبدئي |
+| GET | `/api/edit-tasks/:id` | تفاصيل المهمة والمسارات |
+| PATCH | `/api/edit-tasks/:id` | عنوان/حالة/ملاحظات |
+| POST | `/api/edit-tasks/:id/export` | تسجيل ملف التصدير |
+| GET | `/api/users` | المستخدمون |
+| POST | `/api/users` | إضافة مستخدم |
+| PATCH | `/api/users/:id` | تعديل/تعطيل مستخدم |
+| GET | `/api/moves` | سجل النقل |
+| GET | `/api/assets/:id/move` | آخر نقل للأصل |
+| POST | `/api/moves/:id/undo` | إرجاع الملف إلى المصدر |
+| POST | `/api/assets/:id/relocate` | نقل/نسخ بين حدثين |
+| POST | `/api/events/:id/sources/trash` | حذف الخام مع الإبقاء على الناتج |
+| POST | `/api/agent/check` | اختبار اتصال الوكيل |
 | GET | `/api/archive/candidates` | مرشحات الأرشفة |
 | POST | `/api/archive/run` | `{ targetVolumeId, dryRun, eventIds? }` |
 | POST | `/api/archive/purge` | إفراغ سلة أقدم من السياسة |

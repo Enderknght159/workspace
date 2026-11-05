@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import type { EventDetail as EventDetailModel, JobSummary, StyleInfo } from '../../shared/models.js';
+import type {
+  Asset,
+  EventDetail as EventDetailModel,
+  EventSummary,
+  JobSummary,
+  MoveJournalEntry,
+  Page,
+  StyleInfo,
+} from '../../shared/models.js';
 import { api } from '../lib/api';
 import { useApp } from '../lib/app-context';
 import { useApi } from '../lib/hooks';
@@ -29,12 +37,18 @@ interface PlayerState {
 }
 
 export function EventDetail({ eventId }: { eventId: string }) {
-  const { toast, poke } = useApp();
+  const { toast, poke, runElevated } = useApp();
   const event = useApi<EventDetailModel>(`/api/events/${eventId}`);
   const styles = useApi<StyleInfo[]>('/api/styles');
+  const events = useApi<Page<EventSummary>>('/api/events?limit=200&offset=0');
   const [jobOpen, setJobOpen] = useState(false);
   const [player, setPlayer] = useState<PlayerState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [relocateAsset, setRelocateAsset] = useState<Asset | null>(null);
+  const [targetEvent, setTargetEvent] = useState('');
+  const [relocateMode, setRelocateMode] = useState<'move' | 'copy'>('move');
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState('');
   const [jobForm, setJobForm] = useState({
     kind: 'edit',
     styleId: '',
@@ -85,8 +99,76 @@ export function EventDetail({ eventId }: { eventId: string }) {
     }
   }
 
-  async function createJob() {
+  function openRelocate(asset: Asset) {
+    const firstTarget = events.data?.items.find((item) => item.id !== detail.id);
+    setTargetEvent(firstTarget?.id ?? '');
+    setRelocateMode('move');
+    setRelocateAsset(asset);
+  }
+
+  async function submitRelocate() {
+    if (!relocateAsset || !targetEvent) return;
     setBusy(true);
+    try {
+      await runElevated(() =>
+        api(`/api/assets/${relocateAsset.id}/relocate`, {
+          method: 'POST',
+          body: { targetEventId: targetEvent, mode: relocateMode },
+        }),
+      );
+      toast('نُقل الأصل إلى الحدث الهدف.', 'success');
+      setRelocateAsset(null);
+      event.reload();
+      poke();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'تعذّر نقل الأصل.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function undoMove(asset: Asset) {
+    try {
+      const entry = await api<MoveJournalEntry | null>(`/api/assets/${asset.id}/move`);
+      if (!entry || entry.state !== 'completed') {
+        toast('لا يوجد نقل مكتمل قابل للتراجع لهذا الأصل.', 'error');
+        return;
+      }
+      if (!window.confirm(`إعادة الملف إلى المصدر؟\n${entry.sourcePath}`)) return;
+      await runElevated(() => api(`/api/moves/${entry.id}/undo`, { method: 'POST' }));
+      toast('أُعيد الملف إلى المصدر بعد التحقق.', 'success');
+      poke();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'تعذّر التراجع.', 'error');
+    }
+  }
+
+  async function trashSources() {
+    if (confirmTitle.trim() !== detail.title.trim()) {
+      toast('اكتب اسم الحدث كما هو للتأكيد.', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await runElevated(() =>
+        api<{ moved: number; bytes: number }>(`/api/events/${detail.id}/sources/trash`, {
+          method: 'POST',
+          body: { keepOutputs: true, confirmTitle },
+        }),
+      );
+      toast(`نُقل ${result.moved} ملف خام إلى السلة، مع الإبقاء على المخرجات.`, 'success');
+      setTrashOpen(false);
+      setConfirmTitle('');
+      event.reload();
+      poke();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'تعذّر حذف الخام.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createJob() {    setBusy(true);
     try {
       const job = await api<JobSummary>('/api/jobs', {
         method: 'POST',
@@ -156,9 +238,19 @@ export function EventDetail({ eventId }: { eventId: string }) {
               <span>فتح المراجعة</span>
             </a>
           )}
+          {detail.assets.some((asset) => asset.status === 'present') &&
+            detail.jobs.some((job) => job.resultJson) && (
+              <Button variant="danger" icon="close" onClick={() => setTrashOpen(true)}>
+                حذف الخام
+              </Button>
+            )}
           <Button variant="secondary" icon="plus" onClick={() => setJobOpen(true)} disabled={!detail.relPath}>
             وظيفة جديدة
           </Button>
+          <a className="btn btn--secondary" href={`#/montage?event=${detail.id}`}>
+            <Icon name="film" size={16} />
+            <span>مهمة مونتاج</span>
+          </a>
         </div>
       </Card>
 
@@ -196,6 +288,16 @@ export function EventDetail({ eventId }: { eventId: string }) {
                     >
                       <Icon name="play" size={17} />
                     </button>
+                  )}
+                  {asset.status === 'present' && (
+                    <div className="asset__actions">
+                      <button type="button" className="link small" onClick={() => openRelocate(asset)}>
+                        نقل
+                      </button>
+                      <button type="button" className="link small" onClick={() => void undoMove(asset)}>
+                        إرجاع
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -415,6 +517,78 @@ export function EventDetail({ eventId }: { eventId: string }) {
             title={player.title}
           />
         )}
+      </Modal>
+
+      <Modal
+        open={relocateAsset !== null}
+        title="نقل الأصل إلى حدث آخر"
+        description={`الأصل: ${relocateAsset?.relPath.split('/').pop() ?? ''}`}
+        onClose={() => setRelocateAsset(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRelocateAsset(null)}>
+              إلغاء
+            </Button>
+            <Button
+              variant="primary"
+              loading={busy}
+              disabled={!targetEvent}
+              onClick={() => void submitRelocate()}
+            >
+              تنفيذ النقل
+            </Button>
+          </>
+        }
+      >
+        <div className="form-grid">
+          <Field label="الحدث الهدف" span>
+            <Select value={targetEvent} onChange={(event) => setTargetEvent(event.target.value)}>
+              {(events.data?.items ?? [])
+                .filter((item) => item.id !== detail.id)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title} · {item.occurredAt}
+                  </option>
+                ))}
+            </Select>
+          </Field>
+          <Field label="الطريقة">
+            <Select
+              value={relocateMode}
+              onChange={(event) => setRelocateMode(event.target.value as 'move' | 'copy')}
+            >
+              <option value="move">نقل — يختفي من هذا الحدث</option>
+              <option value="copy">نسخ — يبقى في الحدثين</option>
+            </Select>
+          </Field>
+        </div>
+        <p className="muted small">
+          يتم التحقق بالهاش قبل النقل. عند النقل بين قرصين تُحذف النسخة الأصلية فقط بعد التأكد.
+        </p>
+      </Modal>
+
+      <Modal
+        open={trashOpen}
+        title="حذف الخام مع الإبقاء على الناتج"
+        description="لن يُحذف أي ملف نهائيًا: يُنقل الخام إلى سلة المكتب 30 يومًا، وتبقى المخرجات."
+        onClose={() => setTrashOpen(false)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setTrashOpen(false)}>
+              إلغاء
+            </Button>
+            <Button variant="danger" loading={busy} onClick={() => void trashSources()}>
+              نقل الخام إلى السلة
+            </Button>
+          </>
+        }
+      >
+        <p className="muted small">
+          للتأكيد، اكتب اسم الحدث: <strong>{detail.title}</strong>
+        </p>
+        <Field label="اسم الحدث" span required>
+          <Input value={confirmTitle} onChange={(event) => setConfirmTitle(event.target.value)} />
+        </Field>
       </Modal>
     </div>
   );

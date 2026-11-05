@@ -12,7 +12,8 @@ import {
 } from 'electron';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_VERSION } from '../shared/constants.js';
@@ -442,8 +443,19 @@ function registerIpc(): void {  ipcMain.on('app:bridge-info', (event) => {
     });
     return result.canceled ? null : (result.filePaths[0] ?? null);
   });
-  ipcMain.handle('shell:open-path', async (_event, path: string) => shell.openPath(path));
-  ipcMain.handle('shell:show-item', async (_event, path: string) => {
+  ipcMain.handle('dialog:choose-file', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'اختر ملف الفيديو المصدَّر',
+      properties: ['openFile'],
+      filters: [
+        { name: 'فيديو', extensions: ['mp4', 'mov', 'mxf', 'mkv', 'webm'] },
+        { name: 'كل الملفات', extensions: ['*'] },
+      ],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+  ipcMain.handle('shell:open-path', async (_event, path: string) => shell.openPath(path));  ipcMain.handle('shell:show-item', async (_event, path: string) => {
     shell.showItemInFolder(path);
   });
   ipcMain.handle('app:quit', async () => requestQuit());
@@ -457,6 +469,81 @@ function registerIpc(): void {  ipcMain.on('app:bridge-info', (event) => {
     app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath });
     return app.getLoginItemSettings().openAtLogin;
   });
+  ipcMain.handle('premiere:run-script', async (_event, scriptPath: string) => {
+    if (!scriptPath || !scriptPath.endsWith('create-project.jsx') || !existsSync(scriptPath)) {
+      return { ok: false, message: 'ملف السكربت غير موجود.' };
+    }
+    const executable = premiereExecutable();
+    if (!executable) {
+      return { ok: false, message: 'لم يُعثر على Adobe Premiere في المسار الافتراضي.' };
+    }
+    try {
+      const child = spawn(executable, ['/C', 'es.processFile', scriptPath], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false,
+      });
+      child.unref();
+      log('premiere.script_started', { scriptPath });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: String(error) };
+    }
+  });
+  ipcMain.handle('premiere:install-bridge', async () => {
+    if (process.platform !== 'win32') return { ok: false, message: 'ويندوز فقط.' };
+    const source = app.isPackaged
+      ? join(process.resourcesPath, 'premiere-bridge')
+      : join(app.getAppPath(), 'integrations', 'premiere', 'cep');
+    if (!existsSync(source)) return { ok: false, message: 'ملفات الجسر غير موجودة.' };
+    const destination = join(app.getPath('appData'), 'Adobe', 'CEP', 'extensions', 'com.workspace.premierebridge');
+    try {
+      mkdirSync(destination, { recursive: true });
+      for (const entry of readdirSync(source)) {
+        cpSync(join(source, entry), join(destination, entry), { recursive: true, force: true });
+      }
+      for (const version of [9, 10, 11, 12]) {
+        execFileSync(
+          'reg.exe',
+          [
+            'add',
+            `HKCU\\Software\\Adobe\\CSXS.${version}`,
+            '/v',
+            'PlayerDebugMode',
+            '/t',
+            'REG_SZ',
+            '/d',
+            '1',
+            '/f',
+          ],
+          { windowsHide: true },
+        );
+      }
+      log('premiere.bridge_installed', { destination });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: String(error) };
+    }
+  });
+}
+
+function premiereExecutable(): string | null {
+  if (process.platform !== 'win32') return null;
+  const roots = ['C:/Program Files/Adobe', 'C:/Program Files (x86)/Adobe'];
+  for (const root of roots) {
+    if (!existsSync(root)) continue;
+    try {
+      const dirs = readdirSync(root).filter((name) => name.startsWith('Adobe Premiere Pro'));
+      dirs.sort().reverse();
+      for (const dir of dirs) {
+        const candidate = join(root, dir, 'Adobe Premiere Pro.exe');
+        if (existsSync(candidate)) return candidate;
+      }
+    } catch {
+      // تجاهل.
+    }
+  }
+  return null;
 }
 
 if (!app.requestSingleInstanceLock()) {

@@ -37,7 +37,9 @@ export type IdPrefix =
   | 'off'
   | 'usr'
   | 'task'
-  | 'arc';
+  | 'arc'
+  | 'mov'
+  | 'edt';
 
 export function newId(prefix: IdPrefix, now: number = Date.now()): string {
   return `${prefix}_${ulid(now)}`;

@@ -258,6 +258,66 @@ INSERT INTO users (id, name, role, active, created_at)
 VALUES ('usr_local', 'فريق المكتب', 'owner', 1, strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 `,
   },
+  {
+    version: 2,
+    name: 'ingest-v2-users-premiere',
+    sql: `
+ALTER TABLE jobs ADD COLUMN executor TEXT NOT NULL DEFAULT 'agent';
+
+ALTER TABLE ingest_batches ADD COLUMN mode TEXT NOT NULL DEFAULT 'copy';
+ALTER TABLE ingest_batches ADD COLUMN source_removable INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ingest_batches ADD COLUMN deleted_sources INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ingest_batches ADD COLUMN selection_json TEXT;
+
+ALTER TABLE ingest_files ADD COLUMN selected INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE ingest_files ADD COLUMN source_deleted_at TEXT;
+
+CREATE TABLE move_journal (
+  id TEXT PRIMARY KEY,
+  asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
+  source_path TEXT NOT NULL,
+  target_volume_id TEXT NOT NULL,
+  target_rel_path TEXT NOT NULL,
+  sha256 TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  mode TEXT NOT NULL,
+  action TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'completed',
+  created_at TEXT NOT NULL,
+  undone_at TEXT
+) STRICT;
+CREATE INDEX idx_move_journal_asset ON move_journal(asset_id);
+CREATE INDEX idx_move_journal_state ON move_journal(state);
+
+CREATE TABLE edit_tasks (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'planned',
+  project_rel TEXT,
+  output_rel TEXT,
+  subtitle_rel TEXT,
+  sequence_name TEXT,
+  exported_file_rel TEXT,
+  external_output_path TEXT,
+  exported_bytes INTEGER,
+  notes TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+CREATE INDEX idx_edit_tasks_event ON edit_tasks(event_id);
+CREATE INDEX idx_edit_tasks_state ON edit_tasks(state);
+
+CREATE TABLE edit_task_assets (
+  task_id TEXT NOT NULL REFERENCES edit_tasks(id) ON DELETE CASCADE,
+  asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'source',
+  PRIMARY KEY (task_id, asset_id)
+) STRICT;
+`,
+  },
 ];
 
 export { MIGRATIONS };

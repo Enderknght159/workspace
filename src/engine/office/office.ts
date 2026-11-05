@@ -22,6 +22,10 @@ import { JobService } from '../services/job-service.js';
 import { JobQueue } from '../services/job-queue.js';
 import { SecurityService } from '../services/security-service.js';
 import { ArchiveService } from '../services/archive-service.js';
+import { MoveJournalService } from '../services/move-journal-service.js';
+import { AssetService } from '../services/asset-service.js';
+import { UserService } from '../services/user-service.js';
+import { EditTaskService } from '../services/edit-task-service.js';
 import { APP_SCHEMA } from '../../shared/constants.js';
 
 export interface OpenOfficeOptions {
@@ -56,6 +60,10 @@ export class Office {
   readonly doctor: DoctorService;
   readonly security: SecurityService;
   readonly archive: ArchiveService;
+  readonly assets: AssetService;
+  readonly users: UserService;
+  readonly moves: MoveJournalService;
+  readonly editTasks: EditTaskService;
   readonly machineId: string;
   private readonly lock: OfficeLock;
   private closed = false;
@@ -98,6 +106,13 @@ export class Office {
       logger: this.logger,
       clock: options.clock,
     });
+    this.moves = new MoveJournalService({
+      db: this.db,
+      paths: this.paths,
+      volumes: this.volumes,
+      audit: this.audit,
+      logger: this.logger,
+    });
     this.ingest = new IngestService({
       db: this.db,
       paths: this.paths,
@@ -105,6 +120,7 @@ export class Office {
       events: this.events,
       settings: this.settings,
       audit: this.audit,
+      journal: this.moves,
       bus: this.bus,
       logger: this.logger,
     });
@@ -141,6 +157,24 @@ export class Office {
       volumes: this.volumes,
       events: this.events,
       settings: this.settings,
+      audit: this.audit,
+      logger: this.logger,
+    });
+    this.assets = new AssetService({
+      db: this.db,
+      paths: this.paths,
+      volumes: this.volumes,
+      events: this.events,
+      journal: this.moves,
+      audit: this.audit,
+      logger: this.logger,
+    });
+    this.users = new UserService(this.db, this.audit);
+    this.editTasks = new EditTaskService({
+      db: this.db,
+      paths: this.paths,
+      events: this.events,
+      volumes: this.volumes,
       audit: this.audit,
       logger: this.logger,
     });

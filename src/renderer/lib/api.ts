@@ -22,6 +22,16 @@ export class ApiError extends Error {
 }
 
 let elevationToken: string | null = sessionStorage.getItem('workspace.elevation');
+let actorId = localStorage.getItem('workspace.actorId') ?? 'usr_local';
+
+export function setActorId(id: string): void {
+  actorId = id;
+  localStorage.setItem('workspace.actorId', id);
+}
+
+export function getActorId(): string {
+  return actorId;
+}
 
 export function setElevationToken(token: string | null): void {
   elevationToken = token;
@@ -60,12 +70,15 @@ function installDevBridge() {  const params = new URLSearchParams(window.locatio
     officeDir: '',
     isPackaged: false,
     chooseDirectory: async () => null,
+    chooseFile: async () => null,
     openPath: async () => '',
     showItemInFolder: async () => undefined,
     quit: async () => undefined,
     hideWindow: async () => undefined,
     getStartup: async () => false,
     setStartup: async () => false,
+    createPremiereProject: async () => ({ ok: false, message: 'غير متاح في المتصفح.' }),
+    installPremiereBridge: async () => ({ ok: false, message: 'غير متاح في المتصفح.' }),
   };
   window.workspace = dev;
   return dev;
@@ -79,11 +92,13 @@ export async function api<T>(
     method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
     body?: unknown;
     signal?: AbortSignal;
+    actorId?: string;
   } = {},
 ): Promise<T> {
   const info = bridge();
   const headers: Record<string, string> = {
     authorization: `Bearer ${info.token}`,
+    'x-actor-id': options.actorId ?? actorId,
   };
   if (options.body !== undefined) headers['content-type'] = 'application/json';
   if (elevationToken) headers['x-elevation'] = elevationToken;

@@ -133,12 +133,32 @@ export function assertVolumeRoot(root: string): void {
   mkdirSync(root, { recursive: true });
 }
 
+/** هل المصدر على قرص قابل للإزالة (بطاقة/USB)؟ يحدد وضع النقل الافتراضي. */
+export function isRemovableSource(source: string): boolean {
+  if (process.platform !== 'win32') return false;
+  const qualifier = /^[a-zA-Z]:/.exec(source)?.[0];
+  if (!qualifier) return false;
+  const script = [
+    `$d = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${qualifier}'" -ErrorAction Stop`,
+    'if ($d) { $d.DriveType } else { 3 }',
+  ].join('\n');
+  try {
+    const output = execFileSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      { timeout: 6000, windowsHide: true, encoding: 'utf8' },
+    ).trim();
+    return Number(output) === 2;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * تعداد كل الأقراص الموصولة على ويندوز لاكتشاف تغيّر حرف القرص.
  * تُستخدم عند «إعادة فحص» فقط، لا في كل فتح.
  */
-export function listMountedDrives(timeoutMs = 10_000): MountedDrive[] {
-  if (process.platform !== 'win32') return [];
+export function listMountedDrives(timeoutMs = 10_000): MountedDrive[] {  if (process.platform !== 'win32') return [];
   const script = [
     'Get-Volume | Where-Object { $_.DriveLetter } |',
     'Select-Object DriveLetter,UniqueId,SerialNumber,FileSystem,Size |',

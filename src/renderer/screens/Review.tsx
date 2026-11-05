@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { JobDetail, JobSummary } from '../../shared/models.js';
-import { api, mediaUrl } from '../lib/api';
+import type { JobDetail, JobSummary, User } from '../../shared/models.js';
+import { api, mediaUrl, getActorId } from '../lib/api';
 import { useApp } from '../lib/app-context';
 import { useApi } from '../lib/hooks';
 import {
@@ -37,7 +37,9 @@ interface ResultExtras {
 export function Review({ initialJobId }: { initialJobId: string | null }) {
   const { toast, poke, runElevated } = useApp();
   const pending = useApi<JobSummary[]>('/api/review/pending');
+  const users = useApi<User[]>('/api/users');
   const [selected, setSelected] = useState<string | null>(initialJobId);
+  const [reviewActor, setReviewActor] = useState(getActorId());
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
@@ -84,6 +86,7 @@ export function Review({ initialJobId }: { initialJobId: string | null }) {
         api(`/api/jobs/${detail.data!.id}/review`, {
           method: 'POST',
           body: { decision, checklist: checks, notes: notes.trim() || undefined },
+          actorId: reviewActor,
         }),
       );
       toast(
@@ -117,6 +120,7 @@ export function Review({ initialJobId }: { initialJobId: string | null }) {
         api(`/api/jobs/${detail.data!.id}/publish`, {
           method: 'POST',
           body: { platform, url: publishUrl.trim() },
+          actorId: reviewActor,
         }),
       );
       toast('سُجّل النشر. أصبح الحدث منشورًا.', 'success');
@@ -243,6 +247,18 @@ export function Review({ initialJobId }: { initialJobId: string | null }) {
                 onChange={(event) => setNotes(event.target.value)}
                 placeholder="ما الذي يحتاج تعديلًا؟ كن محددًا."
               />
+            </Field>
+
+            <Field label="تنفيذ القرار باسم" hint="افتراضيًا المستخدم الحالي أعلى الشاشة.">
+              <Select value={reviewActor} onChange={(event) => setReviewActor(event.target.value)}>
+                {(users.data ?? [])
+                  .filter((user) => user.active)
+                  .map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}
+                    </option>
+                  ))}
+              </Select>
             </Field>
 
             <div className="review-actions">

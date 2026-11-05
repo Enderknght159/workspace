@@ -648,12 +648,21 @@ export function Settings() {
                     <option value="opencode">OpenCode</option>
                   </Select>
                 </Field>
-                <Field label="عنوان OpenCode">
+                <Field label="عنوان OpenCode" hint="لم يعد مستخدمًا في V2؛ CLI يكتشف الخادم تلقائيًا.">
                   <Input
                     dir="ltr"
                     value={form.agent.baseUrl}
                     onChange={(event) =>
                       setForm({ ...form, agent: { ...form.agent, baseUrl: event.target.value } })
+                    }
+                  />
+                </Field>
+                <Field label="مسار OpenCode" hint="اسم الأمر أو مسار opencode.exe.">
+                  <Input
+                    dir="ltr"
+                    value={form.agent.opencodePath}
+                    onChange={(event) =>
+                      setForm({ ...form, agent: { ...form.agent, opencodePath: event.target.value } })
                     }
                   />
                 </Field>
@@ -681,7 +690,52 @@ export function Settings() {
                 <Button variant="primary" loading={busy} onClick={() => void save({ agent: form.agent })}>
                   حفظ الوكيل
                 </Button>
+                <Button
+                  icon="scan"
+                  onClick={async () => {
+                    const result = await api<{ ok: boolean; adapter: string; message: string | null }>(
+                      '/api/agent/check',
+                      { method: 'POST' },
+                    );
+                    toast(
+                      result.ok
+                        ? `الاتصال بالوكيل (${result.adapter}) ناجح.`
+                        : result.message ?? 'تعذّر الاتصال بالوكيل.',
+                      result.ok ? 'success' : 'error',
+                    );
+                  }}
+                >
+                  اختبار الاتصال
+                </Button>
               </div>
+            </Card>
+
+            <Card>
+              <SectionHeader
+                title="جسر Premiere"
+                description="يثبّت لوحة Workspace داخل Premiere لإنشاء المشاريع تلقائيًا."
+                action={
+                  <Button
+                    size="sm"
+                    icon="download"
+                    onClick={async () => {
+                      const result = await window.workspace?.installPremiereBridge();
+                      toast(
+                        result?.ok
+                          ? 'ثُبّت الجسر. افتح Premiere ← Window ← Extensions ← Workspace Bridge.'
+                          : result?.message ?? 'تعذّر تثبيت الجسر.',
+                        result?.ok ? 'success' : 'error',
+                      );
+                    }}
+                  >
+                    تثبيت الجسر
+                  </Button>
+                }
+              />
+              <p className="muted small">
+                يفعّل اللوحة غير الموقّعة عبر PlayerDebugMode. على جهاز المكتب الموثوق فقط.
+                بعد التثبيت أدخل مسار المكتب مرة واحدة في اللوحة.
+              </p>
             </Card>
 
             <Card>

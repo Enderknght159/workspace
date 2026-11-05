@@ -1,10 +1,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildPrompt } from './opencode-agent.js';
+import { buildPrompt, resolveCommand } from './opencode-agent.js';
 import { readResultFromOutput } from './mock-agent.js';
 import type { JobFile } from '../../shared/job-contract.js';
 import { makeTempDir } from '../testing/harness.js';
+import type { AgentRunContext } from './types.js';
 
 const jobFile: JobFile = {
   schema: 1,
@@ -18,12 +19,37 @@ const jobFile: JobFile = {
 
 describe('agent contracts', () => {
   it('builds a prompt with the job file and hard boundaries', () => {
-    const prompt = buildPrompt(jobFile, 'work/job.json', 'output/job');
+    const context = {
+      jobId: 'job_test',
+      jobFile,
+      paths: {
+        volumeRoot: 'C:/volume',
+        eventDir: 'C:/volume/event',
+        workDir: 'C:/volume/event/work/job_test',
+        outputDir: 'C:/volume/event/output/job_test',
+        jobFileRel: 'work/job.json',
+        workRel: 'work/job_test',
+        outputRel: 'output/job_test',
+      },
+      signal: new AbortController().signal,
+      onProgress: () => undefined,
+      onLog: () => undefined,
+    } satisfies AgentRunContext;
+    const prompt = buildPrompt(context);
     expect(prompt).toContain('work/job.json');
-    expect(prompt).toContain('output/job');
+    expect(prompt).toContain('output/job_test');
     expect(prompt).toContain('final.mp4');
     expect(prompt).toContain('result.json');
     expect(prompt).toContain('لا تنقل أو تحذف');
+  });
+
+  it('resolves the OpenCode executable instead of a .cmd shim', () => {
+    const resolved = resolveCommand('opencode');
+    if (process.platform === 'win32') {
+      expect(resolved?.toLowerCase().endsWith('.exe')).toBe(true);
+    } else {
+      expect(resolved).toBe('opencode');
+    }
   });
 
   it('rejects a missing or invalid result.json', () => {

@@ -10,8 +10,10 @@ import { AppError } from '../../shared/errors.js';
 import type { JobState } from '../../shared/state-machines.js';
 import {
   archiveRunRequest,
+  createEditTaskRequest,
   createEventRequest,
   createJobRequest,
+  createUserRequest,
   elevateRequest,
   eventIdParams,
   ingestPreviewRequest,
@@ -20,12 +22,17 @@ import {
   listQuery,
   publishJobRequest,
   recoverPasswordRequest,
+  registerEditExportRequest,
   registerVolumeRequest,
+  relocateAssetRequest,
   reviewJobRequest,
   setElevationPasswordRequest,
   settingsPatchRequest,
   transitionEventRequest,
+  trashSourcesRequest,
+  updateEditTaskRequest,
   updateEventRequest,
+  updateUserRequest,
 } from '../../shared/schemas.js';
 import type { Office } from '../office/office.js';
 import { safeOutputName } from '../agent/mock-agent.js';
@@ -112,7 +119,9 @@ export async function startHttpServer(options: HttpServerOptions): Promise<Engin
     const elevationHeader = req.headers['x-elevation'];
     const elevationToken = typeof elevationHeader === 'string' && elevationHeader.length > 0 ? elevationHeader : null;
     const actorHeader = req.headers['x-actor-id'];
-    const actorId = typeof actorHeader === 'string' && actorHeader.length > 0 ? actorHeader : 'usr_local';
+    const requestedActor =
+      typeof actorHeader === 'string' && actorHeader.length > 0 ? actorHeader : 'usr_local';
+    const actorId = office.users.active(requestedActor)?.id ?? 'usr_local';
 
     if (route.path === '/api/stream') {
       streamEvents(req, res, office);
@@ -175,6 +184,11 @@ function buildRoutes(): Route[] {
     route('GET', '/api/events/:id', ({ office, params }) =>
       office.events.get(parseParams(eventIdParams, params).id),
     ),
+    route('POST', '/api/events/:id/sources/trash', ({ office, params, body, actorId, elevationToken }) => {
+      office.security.requireElevation(elevationToken);
+      const request = parseBody(trashSourcesRequest, body);
+      return office.assets.trashSources(parseParams(eventIdParams, params).id, request.confirmTitle, actorId);
+    }),
     route('PATCH', '/api/events/:id', ({ office, params, body, actorId }) =>
       office.events.update(parseParams(eventIdParams, params).id, parseBody(updateEventRequest, body), actorId),
     ),
@@ -221,6 +235,57 @@ function buildRoutes(): Route[] {
     }),
     route('GET', '/api/review/pending', ({ office }) => office.jobs.list({ state: 'review_pending', limit: 200 })),
 
+    route('GET', '/api/users', ({ office }) => office.users.list()),
+    route('POST', '/api/users', ({ office, body, actorId, elevationToken }) => {
+      office.security.requireElevation(elevationToken);
+      return office.users.create(parseBody(createUserRequest, body), actorId);
+    }),
+    route('PATCH', '/api/users/:id', ({ office, params, body, actorId, elevationToken }) => {
+      office.security.requireElevation(elevationToken);
+      return office.users.update(
+        params.id ?? '',
+        parseBody(updateUserRequest, body),
+        actorId,
+      );
+    }),
+
+    route('GET', '/api/moves', ({ office, url }) => {
+      const limit = Number(url.searchParams.get('limit') ?? '100');
+      return office.moves.list(Number.isFinite(limit) ? Math.min(500, Math.max(1, limit)) : 100);
+    }),
+    route('GET', '/api/assets/:id/move', ({ office, params }) =>
+      office.moves.latestForAsset(params.id ?? ''),
+    ),
+    route('POST', '/api/moves/:id/undo', async ({ office, params, actorId, elevationToken }) => {
+      office.security.requireElevation(elevationToken);
+      return office.moves.undo(params.id ?? '', actorId);
+    }),
+    route('POST', '/api/assets/:id/relocate', async ({ office, params, body, actorId, elevationToken }) => {
+      office.security.requireElevation(elevationToken);
+      const request = parseBody(relocateAssetRequest, body);
+      return office.assets.relocate(params.id ?? '', request.targetEventId, request.mode, actorId);
+    }),
+
+    route('GET', '/api/edit-tasks', ({ office, url }) =>
+      office.editTasks.list(url.searchParams.get('eventId') ?? undefined),
+    ),
+    route('POST', '/api/edit-tasks', ({ office, body, actorId }) =>
+      office.editTasks.create(parseBody(createEditTaskRequest, body), actorId),
+    ),
+    route('GET', '/api/edit-tasks/:id', ({ office, params }) =>
+      office.editTasks.get(params.id ?? ''),
+    ),
+    route('PATCH', '/api/edit-tasks/:id', ({ office, params, body, actorId }) =>
+      office.editTasks.update(params.id ?? '', parseBody(updateEditTaskRequest, body), actorId),
+    ),
+    route('POST', '/api/edit-tasks/:id/export', ({ office, params, body, actorId }) =>
+      office.editTasks.registerExport(
+        params.id ?? '',
+        parseBody(registerEditExportRequest, body),
+        actorId,
+      ),
+    ),
+
     route('GET', '/api/volumes', ({ office }) => office.volumes.list()),
     route('POST', '/api/volumes/register', ({ office, body, actorId, elevationToken }) => {
       office.security.requireElevation(elevationToken);
@@ -251,6 +316,7 @@ function buildRoutes(): Route[] {
       const parsed = z.object({ deep: z.boolean().optional() }).safeParse(body ?? {});
       return office.doctor.run({ deep: parsed.success ? parsed.data.deep : false });
     }),
+    route('POST', '/api/agent/check', async ({ office }) => office.queue.checkAgent()),
 
     route('GET', '/api/audit', ({ office, url }) => {
       const limit = Number(url.searchParams.get('limit') ?? '100');

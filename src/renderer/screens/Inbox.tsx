@@ -13,6 +13,7 @@ const KINDS: EventKind[] = ['lesson', 'khutbah', 'event', 'photoshoot', 'other']
 
 const BLOCK_MESSAGES: Record<string, string> = {
   no_media: 'لا توجد ملفات فيديو أو صور في هذا المجلد.',
+  no_selection: 'لم تحدد أي ملف للتفريغ.',
   no_hot_volume: 'لا يوجد قرص ساخن مسجّل ومتصل.',
   insufficient_space: 'المساحة الحرة أقل من الحد الأدنى لبدء التفريغ.',
 };
@@ -39,6 +40,8 @@ export function Inbox() {
   const [preview, setPreview] = useState<IngestPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [mode, setMode] = useState<'copy' | 'move'>('copy');
 
   const hot = volumes.data?.find((volume) => volume.kind === 'hot');
   const request = {
@@ -48,12 +51,15 @@ export function Inbox() {
     ...(title.trim() ? { title: title.trim() } : {}),
     ...(slug.trim() ? { slug: slug.trim() } : {}),
   };
+  const selectedFiles = preview?.files.filter((file) => selected.has(file.relPath)) ?? [];
+  const selectedBytes = selectedFiles.reduce((sum, file) => sum + file.bytes, 0);
 
   async function chooseFolder() {
     const folder = await window.workspace?.chooseDirectory();
     if (!folder) return;
     setSource(folder);
     setPreview(null);
+    setSelected(new Set());
   }
 
   async function runPreview() {
@@ -65,13 +71,21 @@ export function Inbox() {
     try {
       const result = await api<IngestPreview>('/api/ingest/preview', {
         method: 'POST',
-        body: request,
+        body: {
+          ...request,
+          ...(selected.size > 0 ? { selection: [...selected] } : {}),
+          mode,
+        },
       });
       setPreview(result);
+      if (selected.size === 0) {
+        setSelected(new Set(result.files.filter((file) => file.selected).map((file) => file.relPath)));
+      }
       if (!title.trim()) setTitle(result.suggested.title);
       if (!slug.trim()) setSlug(result.suggested.slug);
       setKind(result.suggested.kind);
       setDate(result.suggested.occurredAt);
+      setMode(result.recommendedMode);
     } catch (error) {
       toast(error instanceof Error ? error.message : 'تعذّرت المعاينة.', 'error');
     } finally {
@@ -80,15 +94,16 @@ export function Inbox() {
   }
 
   async function startIngest() {
-    if (!preview || preview.blocked) return;
+    if (!preview || preview.blocked || selected.size === 0) return;
     setStarting(true);
     try {
       const batch = await api<IngestBatch>('/api/ingest/start', {
         method: 'POST',
-        body: request,
+        body: { ...request, selection: [...selected], mode },
       });
       toast(`بدأت الدفعة ${batch.sourceLabel}. يمكنك متابعة العمل داخل التطبيق.`, 'success');
       setPreview(null);
+      setSelected(new Set());
       poke();
       volumes.reload();
     } catch (error) {
@@ -96,6 +111,15 @@ export function Inbox() {
     } finally {
       setStarting(false);
     }
+  }
+
+  function toggleFile(relPath: string): void {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(relPath)) next.delete(relPath);
+      else next.add(relPath);
+      return next;
+    });
   }
 
   return (
@@ -147,6 +171,20 @@ export function Inbox() {
               <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </Field>
 
+            <Field
+              label="وضع التفريغ"
+              hint={
+                preview?.sourceRemovable
+                  ? 'المصدر بطاقة قابلة للإزالة. النقل يحذف الملف من البطاقة بعد التحقق فقط.'
+                  : 'المصدر مجلد عادي. النسخ هو الافتراضي الآمن.'
+              }
+            >
+              <Select value={mode} onChange={(event) => setMode(event.target.value as 'copy' | 'move')}>
+                <option value="copy">نسخ — إبقاء المصدر كما هو</option>
+                <option value="move">نقل — حذف من المصدر بعد التحقق</option>
+              </Select>
+            </Field>
+
             <Field label="العنوان العربي" span>
               <Input
                 value={title}
@@ -177,7 +215,7 @@ export function Inbox() {
               icon="inbox"
               onClick={() => void startIngest()}
               loading={starting}
-              disabled={!preview || preview.blocked}
+              disabled={!preview || preview.blocked || selected.size === 0}
             >
               بدء التفريغ
             </Button>
@@ -187,12 +225,14 @@ export function Inbox() {
             <div className="preview">
               <div className="preview__stats">
                 <div>
-                  <span className="eyebrow">الملفات</span>
-                  <strong>{preview.totalFiles}</strong>
+                  <span className="eyebrow">المحدد</span>
+                  <strong>
+                    {selected.size} / {preview.files.length}
+                  </strong>
                 </div>
                 <div>
-                  <span className="eyebrow">الحجم</span>
-                  <strong>{formatBytes(preview.totalBytes)}</strong>
+                  <span className="eyebrow">حجم المحدد</span>
+                  <strong>{formatBytes(selectedBytes)}</strong>
                 </div>
                 <div>
                   <span className="eyebrow">الوجهة</span>
@@ -219,19 +259,36 @@ export function Inbox() {
                 </ul>
               )}
 
-              <div className="file-list">
-                {preview.files.slice(0, 12).map((file) => (
-                  <div className="file-row" key={file.relPath}>
+              <div className="file-list file-list--select">
+                <div className="file-list__head">
+                  <span className="muted small">اختر الملفات التي تريد تفريغها الآن</span>
+                  <div className="row gap">
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => setSelected(new Set(preview.files.map((file) => file.relPath)))}
+                    >
+                      تحديد الكل
+                    </button>
+                    <button type="button" className="link" onClick={() => setSelected(new Set())}>
+                      إلغاء الكل
+                    </button>
+                  </div>
+                </div>
+                {preview.files.map((file) => (
+                  <label className="file-row file-row--select" key={file.relPath}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(file.relPath)}
+                      onChange={() => toggleFile(file.relPath)}
+                    />
                     <Icon name={file.kind === 'image' ? 'library' : 'film'} size={16} />
                     <span className="file-row__name" dir="ltr">
                       {file.relPath}
                     </span>
                     <span className="muted tiny">{formatBytes(file.bytes)}</span>
-                  </div>
+                  </label>
                 ))}
-                {preview.files.length > 12 && (
-                  <p className="muted tiny">+ {preview.files.length - 12} ملفًا آخر…</p>
-                )}
               </div>
             </div>
           )}
@@ -258,7 +315,9 @@ export function Inbox() {
                       <div>
                         <strong dir="auto">{batch.sourceLabel}</strong>
                         <span className="muted tiny">
-                          {formatDateTime(batch.startedAt)} · {batch.verifiedFiles}/{batch.totalFiles} متحقق
+                          {formatDateTime(batch.startedAt)} · {batch.verifiedFiles}/{batch.totalFiles} متحقق ·{' '}
+                          {batch.mode === 'move' ? 'نقل' : 'نسخ'}
+                          {batch.deletedSources > 0 ? ` · ${batch.deletedSources} محذوف من المصدر` : ''}
                         </span>
                       </div>
                       <Badge

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #111916;
+        color: #e9f0ea;
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        font-size: 12px;
+      }
+      .wrap {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      h1 {
+        font-size: 14px;
+        margin: 0;
+        color: #d9b878;
+      }
+      p {
+        margin: 0;
+        color: #93a59b;
+        line-height: 1.6;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        background: #0a0f0d;
+        color: #e9f0ea;
+        border: 1px solid #2f443b;
+        border-radius: 6px;
+        padding: 7px;
+        direction: ltr;
+      }
+      .row {
+        display: flex;
+        gap: 6px;
+      }
+      button {
+        background: #d9b878;
+        color: #17120a;
+        border: 0;
+        border-radius: 6px;
+        padding: 6px 10px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button.secondary {
+        background: #1b2822;
+        color: #e9f0ea;
+        border: 1px solid #2f443b;
+      }
+      #log {
+        max-height: 90px;
+        overflow: auto;
+        background: #0a0f0d;
+        border: 1px solid #21302a;
+        border-radius: 6px;
+        padding: 6px;
+        color: #93a59b;
+        font-size: 11px;
+        white-space: pre-wrap;
+        direction: ltr;
+        text-align: left;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #74c8a4;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #74c8a4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Workspace — Premiere Bridge</h1>
+      <p>افتح المشروع تلقائيًا عندما ينشئ Workspace مهمة مونتاج.</p>
+      <input id="office" placeholder="مسار مجلد المكتب، مثال: C:\Users\...\Documents\WorkspaceOffice" />
+      <div class="row">
+        <button id="save">حفظ وبدء</button>
+        <button id="stop" class="secondary">إيقاف</button>
+      </div>
+      <div class="status"><span class="dot" id="dot"></span><span id="state">متوقف</span></div>
+      <div id="log"></div>
+    </div>
+    <script src="./main.js"></script>
+  </body>
+</html>
