@@ -187,7 +187,12 @@ export class AssetService {
        AND state IN ('review_pending','approved','published','archived')`,
       eventId,
     );
-    if ((outputCount?.count ?? 0) === 0) {
+    const editOutputCount = this.deps.db.get<{ count: number }>(
+      `SELECT COUNT(*) AS count FROM edit_tasks
+       WHERE event_id = ? AND (exported_file_rel IS NOT NULL OR external_output_path IS NOT NULL)`,
+      eventId,
+    );
+    if ((outputCount?.count ?? 0) === 0 && (editOutputCount?.count ?? 0) === 0) {
       throw new AppError('WS-0006', { reason: 'no_saved_outputs' });
     }
     const volume = this.deps.volumes.get(event.volumeId);

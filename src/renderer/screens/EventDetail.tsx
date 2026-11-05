@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type {
   Asset,
+  EditTask,
   EventDetail as EventDetailModel,
   EventSummary,
   JobSummary,
@@ -41,6 +42,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
   const event = useApi<EventDetailModel>(`/api/events/${eventId}`);
   const styles = useApi<StyleInfo[]>('/api/styles');
   const events = useApi<Page<EventSummary>>('/api/events?limit=200&offset=0');
+  const editTasks = useApi<EditTask[]>(`/api/edit-tasks?eventId=${eventId}`);
   const [jobOpen, setJobOpen] = useState(false);
   const [player, setPlayer] = useState<PlayerState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -239,7 +241,10 @@ export function EventDetail({ eventId }: { eventId: string }) {
             </a>
           )}
           {detail.assets.some((asset) => asset.status === 'present') &&
-            detail.jobs.some((job) => job.resultJson) && (
+            (detail.jobs.some((job) => job.resultJson) ||
+              (editTasks.data ?? []).some(
+                (task) => task.exportedFileRel !== null || task.externalOutputPath !== null,
+              )) && (
               <Button variant="danger" icon="close" onClick={() => setTrashOpen(true)}>
                 حذف الخام
               </Button>
